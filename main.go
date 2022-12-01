@@ -97,9 +97,16 @@ func main() {
 
 	form.Find("p").Each(func(i int, s *goquery.Selection) {
 
-		input, _ := s.Find("input").Attr("value")
+		sel := s.Find("select")
+		fmt.Println(sel.Attr("name"))
+		sel.Find("option").Each(func(a int, x *goquery.Selection) {
+			val, _ := x.Attr("value")
+			fmt.Printf("option: %s\n", val)
+		})
 
-		fmt.Printf("%#v\n", input)
+		//input := s.Find("input").Text()
+
+		//fmt.Printf("%#v\n", input)
 	})
 	//if is != true {
 	//	log.Println("There is no form with method")
