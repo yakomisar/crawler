@@ -85,13 +85,7 @@ func main() {
 	doc1, err := goquery.NewDocumentFromReader(f)
 	if err != nil {
 		log.Fatal(err)
-	} // use the goquery document... _ = doc.Find("h1")
-
-	// Load the HTML document
-	//doc1, err := goquery.NewDocumentFromReader(resp.Body)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
+	}
 
 	form := doc1.Find("form")
 	results := make(map[string]string)
@@ -100,10 +94,49 @@ func main() {
 		if is == true {
 			results[name] = value
 		}
+		name, value, is = checkTextRadio(s)
+		if is == true {
+			results[name] = value
+		}
+		name, value, is = checkText(s)
+		if is == true {
+			results[name] = value
+		}
 	})
 	for key, val := range results {
 		fmt.Println("Key " + key + " Value " + val)
 	}
+}
+
+func checkTextRadio(s *goquery.Selection) (string, string, bool) {
+	attrType, exist := s.Find("input").Attr("type")
+	if exist && attrType == "radio" {
+		value := ""
+		name, _ := s.Find("input").Attr("name")
+		s.Find("input").Each(func(a int, x *goquery.Selection) {
+			val, _ := x.Attr("value")
+			if len(val) > len(value) {
+				value = val
+			}
+		})
+
+		return name, value, true
+	}
+	return "", "", false
+}
+
+func checkText(s *goquery.Selection) (string, string, bool) {
+	sel := s.Find("input")
+	inputType, exist := sel.Attr("type")
+	if exist {
+		if inputType == "radio" {
+
+		} else if inputType == "text" {
+			name, _ := sel.Attr("name")
+			return name, "text", true
+		}
+	}
+	return "", "", false
 }
 
 func checkSelect(s *goquery.Selection) (string, string, bool) {
@@ -116,11 +149,8 @@ func checkSelect(s *goquery.Selection) (string, string, bool) {
 			if len(val) > len(value) {
 				value = val
 			}
-			//fmt.Printf("option: %s\n", val)
 		})
 		return name, value, true
-	} else {
-		fmt.Println("Другое значение")
 	}
 	return "", "", false
 }
