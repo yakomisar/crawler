@@ -94,32 +94,33 @@ func main() {
 	//}
 
 	form := doc1.Find("form")
-
+	results := make(map[string]string)
 	form.Find("p").Each(func(i int, s *goquery.Selection) {
+		name, value, is := checkSelect(s)
+		if is == true {
+			results[name] = value
+		}
+	})
+	for key, val := range results {
+		fmt.Println("Key " + key + " Value " + val)
+	}
+}
 
-		sel := s.Find("select")
-		fmt.Println(sel.Attr("name"))
+func checkSelect(s *goquery.Selection) (string, string, bool) {
+	sel := s.Find("select")
+	name, exist := sel.Attr("name")
+	if exist {
+		value := ""
 		sel.Find("option").Each(func(a int, x *goquery.Selection) {
 			val, _ := x.Attr("value")
-			fmt.Printf("option: %s\n", val)
+			if len(val) > len(value) {
+				value = val
+			}
+			//fmt.Printf("option: %s\n", val)
 		})
-
-		//input := s.Find("input").Text()
-
-		//fmt.Printf("%#v\n", input)
-	})
-	//if is != true {
-	//	log.Println("There is no form with method")
-	//
-	//}
-	//fmt.Println(form.Text())
-
-	//
-	//// Find the review items
-	//doc.Find("a").Each(func(i int, s *goquery.Selection) {
-	//	// For each item found, get the title
-	//	href := s.Find("href").Text()
-	//	fmt.Printf("P %d: %s\n", i, href)
-	//})
-
+		return name, value, true
+	} else {
+		fmt.Println("Другое значение")
+	}
+	return "", "", false
 }
