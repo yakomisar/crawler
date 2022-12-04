@@ -1,14 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"github.com/PuerkitoBio/goquery"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"strconv"
 )
 
 var client http.Client
@@ -94,6 +93,109 @@ func app_init(url string) (*application, error) {
 	return app, nil
 }
 
+func submitStartPage(app *application, uRL string) (*goquery.Document, error) {
+	// Обработка стартовой страницы
+	req, err := http.NewRequest("GET", uRL, nil)
+	if err != nil {
+		log.Fatalf("Got an error %s", err.Error())
+		return nil, err
+	}
+
+	resp, err := app.client.Do(req)
+	if err != nil {
+		app.logger.Fatalf("Error in the Do(req): %s", err.Error())
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	return doc, err
+}
+
+func processWebPage(app *application, uRL string) error {
+	_, err := submitStartPage(app, uRL)
+	if err != nil {
+		app.logger.Fatalf("Error in submitting start page: %s", err.Error())
+		return err
+	}
+	header := ""
+	for i := 1; ; i++ {
+		if header == "Test successfully passed" {
+			break
+		}
+		number := strconv.Itoa(i)
+		startLink := "/question/" + number
+		req, err := http.NewRequest("GET", "http://185.204.3.165"+startLink, nil)
+		if err != nil {
+			app.logger.Fatalf("Unable to request using %s link: %s", startLink, err.Error())
+			return err
+		}
+		resp, err := app.client.Do(req)
+		if err != nil {
+			app.logger.Fatalf("Unable to request using %s link: %s", startLink, err.Error())
+			return err
+		}
+		defer resp.Body.Close()
+		doc1, err := goquery.NewDocumentFromReader(resp.Body)
+		if err != nil {
+			app.logger.Fatalf("Unable to read document: %s ", err.Error())
+			return err
+		}
+		form := doc1.Find("form")
+		results := make(map[string]string)
+		form.Find("p").Each(func(i int, s *goquery.Selection) {
+			name, value, is := checkSelect(s)
+			if is == true {
+				results[name] = value
+			}
+			name, value, is = checkTextRadio(s)
+			if is == true {
+				results[name] = value
+			}
+			name, value, is = checkText(s)
+			if is == true {
+				results[name] = value
+			}
+		})
+		urlA, err := url.Parse("http://185.204.3.165" + startLink)
+		if err != nil {
+			app.logger.Fatalf("Unable to parse: %s ", err.Error())
+			return err
+		}
+		app.logger.Println("Processing: ", urlA.String())
+		values := urlA.Query()
+
+		for key, val := range results {
+			values.Add(key, val)
+		}
+		urlA.RawQuery = values.Encode()
+		req, err = http.NewRequest("POST", urlA.String(), nil)
+		if err != nil {
+			app.logger.Fatalf("Unable to POST: %s", err.Error())
+			return err
+		}
+
+		resp, err = app.client.Do(req)
+		if err != nil {
+			app.logger.Fatalf("Error in the Do(req): %s", err.Error())
+			return err
+		}
+
+		doc, err := goquery.NewDocumentFromReader(resp.Body)
+		if err != nil {
+			app.logger.Fatalf("Unable to get document header: %s", err.Error())
+			return err
+		}
+		// Обновляем header для проверки
+		header = doc.Find("h1").Text()
+	}
+	return nil
+}
+
 func main() {
 	// Инициализация приложения
 	uRL := "http://185.204.3.165"
@@ -102,124 +204,12 @@ func main() {
 		app.logger.Fatalf("Problem with application launch: %s", err)
 		return
 	}
+	// Старт приложения
 	app.logger.Println("Application started...")
-
-	req, err := http.NewRequest("GET", uRL, nil)
+	err = processWebPage(app, uRL)
 	if err != nil {
-		log.Fatalf("Got error %s", err.Error())
-	}
-	//cookie := &http.Cookie{
-	//	//Name:   "token",
-	//	//Value:  "my_token",
-	//	//MaxAge: 300,
-	//}
-	//urlObj, _ := url.Parse(uRL)
-	//client.Jar.SetCookies(urlObj, []*http.Cookie{cookie})
-	resp, err := app.client.Do(req)
-	if err != nil {
-		log.Fatalf("Error occured. Error is: %s", err.Error())
-	}
-	defer resp.Body.Close()
-
-	// Load the HTML document
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Get start link to initiate Test
-	startLink, is := doc.Find("a").Attr("href")
-	if is != true {
-		log.Println("There is no link to start Test")
+		app.logger.Fatal(err)
 		return
 	}
-
-	req, err = http.NewRequest("GET", "http://185.204.3.165"+startLink, nil)
-	if err != nil {
-		log.Fatalf("Got error %s", err.Error())
-		return
-	}
-
-	resp, err = app.client.Do(req)
-	if err != nil {
-		log.Fatalf("Error occured. Error is: %s", err.Error())
-	}
-	if resp.StatusCode != 200 {
-		log.Fatalf("status code error: %d %s", resp.StatusCode, resp.Status)
-	}
-	defer resp.Body.Close()
-	//
-	//body, err := ioutil.ReadAll(resp.Body)
-	//if err != nil {
-	//	log.Fatalln(err)
-	//}
-	////Преобразовываем массив байт в строку и выводим на печать
-	//sb := string(body)
-	//log.Printf(sb)
-	//return
-
-	// create from a file
-	//f, err := os.Open("main.html")
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//defer f.Close()
-
-	doc1, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	form := doc1.Find("form")
-	results := make(map[string]string)
-	form.Find("p").Each(func(i int, s *goquery.Selection) {
-		name, value, is := checkSelect(s)
-		if is == true {
-			results[name] = value
-		}
-		name, value, is = checkTextRadio(s)
-		if is == true {
-			results[name] = value
-		}
-		name, value, is = checkText(s)
-		if is == true {
-			results[name] = value
-		}
-	})
-
-	urlA, err := url.Parse("http://185.204.3.165" + startLink)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	values := urlA.Query()
-
-	for key, val := range results {
-		fmt.Println(key, " - ", val)
-		values.Add(key, val)
-	}
-	urlA.RawQuery = values.Encode()
-
-	fmt.Println(urlA.String())
-
-	req, err = http.NewRequest("POST", urlA.String(), nil)
-	if err != nil {
-		log.Fatalf("Got error %s", err.Error())
-		return
-	}
-
-	resp, err = app.client.Do(req)
-	if err != nil {
-		log.Fatalf("Error occured. Error is: %s", err.Error())
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(string(body))
-
-	//for key, val := range results {
-	//	fmt.Println("Key " + key + " Value " + val)
-	//}
+	app.logger.Println("Test successfully passed.")
 }
