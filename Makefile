@@ -1,15 +1,15 @@
-crawler:
-	echo "Program 'crawler'"
+NAME = bin/crawler
 
-build:
+$(NAME):
 	@echo "Compiling for specific OS and Platform"
+	go mod tidy
 	go build -o bin/crawler main.go
 
 run:
-	go run bin/crawler.go
+	go run main.go
 
 clean:
 	@echo "Deleting binary files..."
 	@rm -rf bin/
 
-all: crawler build
+all: $(NAME)
