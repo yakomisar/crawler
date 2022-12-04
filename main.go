@@ -10,8 +10,6 @@ import (
 	"strconv"
 )
 
-var client http.Client
-
 func checkTextRadio(s *goquery.Selection) (string, string, bool) {
 	attrType, exist := s.Find("input").Attr("type")
 	if exist && attrType == "radio" {
@@ -58,16 +56,6 @@ func checkSelect(s *goquery.Selection) (string, string, bool) {
 	}
 	return "", "", false
 }
-
-//func init() {
-//	jar, err := cookiejar.New(nil)
-//	if err != nil {
-//		log.Fatalf("Got error while creating cookie jar %s", err.Error())
-//	}
-//	client = http.Client{
-//		Jar: jar,
-//	}
-//}
 
 type application struct {
 	client *http.Client
