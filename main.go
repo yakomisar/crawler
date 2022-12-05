@@ -63,7 +63,7 @@ type application struct {
 }
 
 func app_init(url string) (*application, error) {
-	// Cookie container creation
+	// Создание контейнера для куки
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		log.Fatalf("Unable to create cookie container: %s", err)
@@ -72,7 +72,7 @@ func app_init(url string) (*application, error) {
 	cookieClient := &http.Client{
 		Jar: jar,
 	}
-	// Create logger
+	// Создание логгера
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	app := &application{
 		client: cookieClient,
@@ -81,31 +81,31 @@ func app_init(url string) (*application, error) {
 	return app, nil
 }
 
-func submitStartPage(app *application, uRL string) (*goquery.Document, error) {
+func getPage(app *application, uRL string, method string) (*goquery.Document, error) {
 	// Обработка стартовой страницы
-	req, err := http.NewRequest("GET", uRL, nil)
+	req, err := http.NewRequest(method, uRL, nil)
 	if err != nil {
-		log.Fatalf("Got an error %s", err.Error())
+		app.logger.Fatalf("Unable to request using %s link: %s", uRL, err.Error())
 		return nil, err
 	}
 
 	resp, err := app.client.Do(req)
 	if err != nil {
-		app.logger.Fatalf("Error in the Do(req): %s", err.Error())
+		app.logger.Fatalf("Unable to request using %s link: %s", uRL, err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		app.logger.Fatalf("Unable to read document: %s ", err.Error())
 		return nil, err
 	}
 	return doc, err
 }
 
 func processWebPage(app *application, uRL string) error {
-	_, err := submitStartPage(app, uRL)
+	_, err := getPage(app, uRL, "GET")
 	if err != nil {
 		app.logger.Fatalf("Error in submitting start page: %s", err.Error())
 		return err
@@ -116,23 +116,14 @@ func processWebPage(app *application, uRL string) error {
 			break
 		}
 		number := strconv.Itoa(i)
-		startLink := "/question/" + number
-		req, err := http.NewRequest("GET", "http://185.204.3.165"+startLink, nil)
+		questionLink := "/question/" + number
+		// Получаем страницу с очередным вопросом
+		doc1, err := getPage(app, uRL+questionLink, "GET")
 		if err != nil {
-			app.logger.Fatalf("Unable to request using %s link: %s", startLink, err.Error())
+			app.logger.Fatalf("Unable to read current document: %s ", err.Error())
 			return err
 		}
-		resp, err := app.client.Do(req)
-		if err != nil {
-			app.logger.Fatalf("Unable to request using %s link: %s", startLink, err.Error())
-			return err
-		}
-		defer resp.Body.Close()
-		doc1, err := goquery.NewDocumentFromReader(resp.Body)
-		if err != nil {
-			app.logger.Fatalf("Unable to read document: %s ", err.Error())
-			return err
-		}
+		// Парсим страницу с вопросами
 		form := doc1.Find("form")
 		results := make(map[string]string)
 		form.Find("p").Each(func(i int, s *goquery.Selection) {
@@ -149,31 +140,20 @@ func processWebPage(app *application, uRL string) error {
 				results[name] = value
 			}
 		})
-		urlA, err := url.Parse("http://185.204.3.165" + startLink)
+		urlA, err := url.Parse("http://185.204.3.165" + questionLink)
 		if err != nil {
 			app.logger.Fatalf("Unable to parse: %s ", err.Error())
 			return err
 		}
 		app.logger.Println("Processing: ", urlA.String())
 		values := urlA.Query()
-
 		for key, val := range results {
 			values.Add(key, val)
 		}
 		urlA.RawQuery = values.Encode()
-		req, err = http.NewRequest("POST", urlA.String(), nil)
-		if err != nil {
-			app.logger.Fatalf("Unable to POST: %s", err.Error())
-			return err
-		}
 
-		resp, err = app.client.Do(req)
-		if err != nil {
-			app.logger.Fatalf("Error in the Do(req): %s", err.Error())
-			return err
-		}
-
-		doc, err := goquery.NewDocumentFromReader(resp.Body)
+		// Отправляем наши ответы с помощью метода POST
+		doc, err := getPage(app, urlA.String(), "POST")
 		if err != nil {
 			app.logger.Fatalf("Unable to get document header: %s", err.Error())
 			return err
